@@ -72,11 +72,18 @@ const state = {
   heatDirection: 1,
   runToken: 0,
   audioContext: null,
+  explosionBuffer: null,
+  explosionLoading: null,
+  explosionSource: null,
 };
 
 // 指定された p5.js スケッチと同じシンプルマット定義を使用します。
 const targetMat =
   typeof P5tId !== "undefined" ? P5tId.SimpleTileMat : undefined;
+const EXPLOSION_AUDIO_URL = new URL(
+  "audio/fusion-explosion.mp3",
+  document.baseURI,
+).href;
 const hasBluetooth = "bluetooth" in navigator;
 const hasToioSdk = typeof P5tCube !== "undefined";
 const toioSupported = hasBluetooth && hasToioSdk;
@@ -290,6 +297,68 @@ function initAudio() {
   if (state.audioContext?.state === "suspended") {
     state.audioContext.resume();
   }
+
+  if (
+    state.audioContext &&
+    !state.explosionBuffer &&
+    !state.explosionLoading
+  ) {
+    state.explosionLoading = fetch(EXPLOSION_AUDIO_URL)
+      .then((response) => {
+        if (!response.ok) throw new Error("explosion audio load failed");
+        return response.arrayBuffer();
+      })
+      .then((audioData) => state.audioContext.decodeAudioData(audioData))
+      .then((audioBuffer) => {
+        state.explosionBuffer = audioBuffer;
+      })
+      .catch((error) => {
+        state.explosionLoading = null;
+        console.warn("explosion audio unavailable", error);
+      });
+  }
+}
+
+function stopExplosionSound() {
+  if (!state.explosionSource) return;
+  try {
+    state.explosionSource.stop();
+  } catch {
+    // 再生終了済みの場合は何もしません。
+  }
+  state.explosionSource = null;
+}
+
+function playExplosionSound() {
+  if (!state.audioContext || !state.explosionBuffer) {
+    browserSweep(180, 55, 1.6, 0.08);
+    return;
+  }
+
+  stopExplosionSound();
+  const source = state.audioContext.createBufferSource();
+  const gain = state.audioContext.createGain();
+  const now = state.audioContext.currentTime;
+  const fadeOutAt = Math.min(
+    state.explosionBuffer.duration,
+    4.75,
+  );
+
+  source.buffer = state.explosionBuffer;
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.38, now + 0.035);
+  gain.gain.setValueAtTime(0.38, now + Math.max(0.04, fadeOutAt - 0.7));
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + fadeOutAt);
+  source.connect(gain).connect(state.audioContext.destination);
+  source.addEventListener(
+    "ended",
+    () => {
+      if (state.explosionSource === source) state.explosionSource = null;
+    },
+    { once: true },
+  );
+  state.explosionSource = source;
+  source.start(now);
 }
 
 function browserTone(frequency = 440, duration = 0.08, volume = 0.045) {
@@ -812,7 +881,7 @@ async function runFusionSequence() {
         { note: 84, duration: 24 },
       ]);
     });
-    browserSuccessSound();
+    playExplosionSound();
     await pause(2900, token);
 
     // 6. エネルギー放出
@@ -908,6 +977,7 @@ function resetExperience() {
   state.runToken += 1;
   state.running = false;
   stopHeating();
+  stopExplosionSound();
   stopAllToio();
   updateTemperature(0);
   elements.heatButton.hidden = false;

@@ -645,6 +645,21 @@ kbd {
   animation: fusionFlash 2.8s ease-out forwards;
 }
 
+.scene-fusion {
+  animation: reactorImpact 780ms cubic-bezier(0.2, 0.85, 0.3, 1);
+}
+
+.scene-fusion::before {
+  animation: reactorWhiteout 1.15s ease-out;
+}
+
+.scene-fusion .orbit {
+  border-color: rgb(255 218 112 / 0.52);
+  box-shadow:
+    0 0 60px rgb(255 128 32 / 0.38),
+    inset 0 0 80px rgb(255 246 184 / 0.18);
+}
+
 .scene-release .nucleus-track-a {
   opacity: 0.58;
   transform: translate(calc(-50% - min(42vw, 520px)), -50%) scale(0.5);
@@ -968,6 +983,44 @@ footer {
   100% {
     opacity: 0.9;
     transform: translate(-50%, -50%) scale(2.3);
+  }
+}
+
+@keyframes reactorImpact {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  12% {
+    transform: translate(-9px, 4px);
+  }
+  26% {
+    transform: translate(8px, -5px);
+  }
+  42% {
+    transform: translate(-6px, -3px);
+  }
+  60% {
+    transform: translate(5px, 3px);
+  }
+  78% {
+    transform: translate(-2px, 1px);
+  }
+}
+
+@keyframes reactorWhiteout {
+  0% {
+    opacity: 1;
+    background: radial-gradient(circle, #fff 0 10%, #fff5b8 24%, #ff7a1c 46%, transparent 72%);
+    transform: translate(-50%, -50%) scale(0.1);
+  }
+  38% {
+    opacity: 0.95;
+    transform: translate(-50%, -50%) scale(1.25);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(2.1);
   }
 }
 

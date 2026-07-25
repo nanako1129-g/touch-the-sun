@@ -55,6 +55,7 @@ FUSION後はSimpleTileMatの実座標を読み、2台を中央線 `y=250` 上の
 
 - [p5.toio 0.5.0](https://tetunori.github.io/p5.toio/) — Web Bluetooth接続、モーター、LED、スピーカー制御
 - p5.js 1.11.1 — p5.toioの実行依存
+- `public/audio/fusion-explosion.mp3` — 核融合時の爆発音（ユーザー提供素材）
 
 実機接続とマット定義は、指定された[p5.jsスケッチ `toio-digital-twin-demo`](https://editor.p5js.org/akichika/sketches/DrQ64DrhE)と同じ `P5tCube.connectNewP5tCube()`、`P5tId.SimpleTileMat` を使用します。実機APIは既存の `apps/toio-cute-dance` とp5.toio公式APIリファレンスでも確認済みです。
 
