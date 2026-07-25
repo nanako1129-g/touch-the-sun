@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="2つの原子核を熱し、光・音・動きで小さな太陽を生み出すインタラクティブデモ。"
+    />
+    <meta name="theme-color" content="#050714" />
+    <title>TOUCH THE SUN</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.1/p5.min.js"></script>
+    <script>
+      // p5.toio 0.5.0 がグローバル参照するp5.js互換の数値関数。
+      window.sin = Math.sin;
+      window.radians = (degrees) => (degrees * Math.PI) / 180;
+      window.degrees = (radians) => (radians * 180) / Math.PI;
+
+      // p5.jsのグローバルモードも最小構成で初期化する。
+      function setup() {
+        noCanvas();
+        noLoop();
+      }
+    </script>
+    <script src="https://tetunori.github.io/p5.toio/dist/0.5.0/p5.toio.min.js"></script>
+  </head>
+  <body>
+    <div class="ambient" aria-hidden="true"></div>
+
+    <main class="app">
+      <header class="topbar">
+        <a class="brand" href="./" aria-label="TOUCH THE SUN ホーム">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>TOUCH THE SUN</span>
+        </a>
+
+        <div class="mode-switch" aria-label="体験モード">
+          <button class="mode-button is-active" type="button" data-mode="demo">
+            DEMO MODE
+          </button>
+          <button class="mode-button" type="button" data-mode="toio">
+            TOIO MODE
+          </button>
+        </div>
+
+        <button class="reset-button" id="resetButton" type="button">
+          <span aria-hidden="true">■</span>
+          STOP / RESET
+          <kbd>ESC</kbd>
+        </button>
+      </header>
+
+      <section class="connection-panel" id="connectionPanel" hidden>
+        <div>
+          <span class="connection-dot" id="connectionDot" aria-hidden="true"></span>
+          <strong id="connectionTitle">TOIO NOT CONNECTED</strong>
+          <span id="connectionDetail">Core Cubeを2台接続してください</span>
+        </div>
+        <button class="connect-button" id="connectButton" type="button">
+          CONNECT TO TOIO
+          <span id="connectCount">0 / 2</span>
+        </button>
+        <button class="demo-fallback" id="demoFallback" type="button" hidden>
+          USE DEMO MODE
+        </button>
+      </section>
+
+      <section class="experience" aria-live="polite">
+        <div class="status-block">
+          <p class="status-kicker" id="statusKicker">SYSTEM STANDBY</p>
+          <h1 class="status-title" id="statusTitle">核融合炉を起動してください</h1>
+          <p class="status-copy" id="statusCopy">
+            2つの原子核にエネルギーを与えます
+          </p>
+        </div>
+
+        <div class="stage scene-idle" id="stage" aria-label="原子核のアニメーション">
+          <div class="orbit orbit-one" aria-hidden="true"></div>
+          <div class="orbit orbit-two" aria-hidden="true"></div>
+          <div class="wave wave-one" aria-hidden="true"></div>
+          <div class="wave wave-two" aria-hidden="true"></div>
+          <div class="wave wave-three" aria-hidden="true"></div>
+          <div class="fusion-core" aria-hidden="true"></div>
+
+          <div class="nucleus-track nucleus-track-a">
+            <div class="nucleus nucleus-a" aria-label="原子核 A">
+              <span class="nucleus-center"></span>
+              <span class="electron electron-one"></span>
+              <span class="electron electron-two"></span>
+            </div>
+            <span class="nucleus-label">NUCLEUS A</span>
+          </div>
+
+          <div class="nucleus-track nucleus-track-b">
+            <div class="nucleus nucleus-b" aria-label="原子核 B">
+              <span class="nucleus-center"></span>
+              <span class="electron electron-one"></span>
+              <span class="electron electron-two"></span>
+            </div>
+            <span class="nucleus-label">NUCLEUS B</span>
+          </div>
+
+          <div class="born-message" id="bornMessage">
+            <p>A SMALL SUN WAS BORN.</p>
+            <strong>小さな太陽が生まれた</strong>
+            <span>温度は速度に。<br />エネルギーは光と音と動きになった。</span>
+          </div>
+        </div>
+
+        <div class="controls">
+          <div class="temperature">
+            <div class="temperature-heading">
+              <span>TEMPERATURE</span>
+              <strong id="temperatureValue">0%</strong>
+            </div>
+            <div
+              class="temperature-track"
+              role="progressbar"
+              aria-label="温度"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+              id="temperatureTrack"
+            >
+              <div class="temperature-fill" id="temperatureFill"></div>
+            </div>
+          </div>
+
+          <div class="action-area">
+            <button class="heat-button" id="heatButton" type="button">
+              <span class="button-eyebrow">PRESS &amp; HOLD</span>
+              <strong>HOLD TO HEAT</strong>
+              <span class="hold-ring" aria-hidden="true"></span>
+            </button>
+
+            <button class="fusion-button" id="fusionButton" type="button" hidden>
+              <span>IGNITE</span>
+              <strong>FUSION</strong>
+            </button>
+          </div>
+
+          <p class="operation-hint" id="operationHint">
+            ボタンを7秒間長押ししてください
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      toio接続には、Bluetooth対応のPCとChromeまたはEdgeを推奨します。<br class="mobile-break" />
+      toioをお持ちでない場合はDEMO MODEをお楽しみください。
+    </footer>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
