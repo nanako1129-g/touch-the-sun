@@ -2,6 +2,8 @@
 
 2つの原子核を熱し、核融合を画面と2台のtoio Core Cubeで同時に表現する、約40秒の1画面デモです。toioがなくても `DEMO MODE` で体験できます。
 
+公開版: [https://touch-the-sun.vercel.app](https://touch-the-sun.vercel.app)
+
 ## 起動
 
 ```bash
