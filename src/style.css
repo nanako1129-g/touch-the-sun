@@ -142,10 +142,17 @@ a:focus-visible {
   opacity: 0.55;
 }
 
+.top-actions {
+  display: flex;
+  align-items: center;
+  justify-self: end;
+  gap: 8px;
+}
+
+.bgm-toggle,
 .reset-button {
   display: inline-flex;
   align-items: center;
-  justify-self: end;
   gap: 8px;
   min-height: 38px;
   padding: 8px 12px;
@@ -157,6 +164,29 @@ a:focus-visible {
   font-weight: 800;
   letter-spacing: 0.12em;
   cursor: pointer;
+}
+
+.bgm-toggle {
+  border-color: rgb(98 158 255 / 0.35);
+  color: #86a9ed;
+}
+
+.bgm-toggle strong {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.bgm-toggle.is-on {
+  color: #d8e7ff;
+  border-color: rgb(105 165 255 / 0.62);
+  background: rgb(20 42 91 / 0.72);
+  box-shadow:
+    0 0 18px rgb(47 111 255 / 0.18),
+    inset 0 0 16px rgb(65 132 255 / 0.1);
+}
+
+.bgm-toggle:not(.is-on) {
+  color: #626d8c;
 }
 
 .reset-button:hover,
@@ -661,13 +691,25 @@ kbd {
 }
 
 .scene-release .nucleus-track-a {
-  opacity: 0.58;
-  transform: translate(calc(-50% - min(42vw, 520px)), -50%) scale(0.5);
+  opacity: 0.74;
+  transform: translate(calc(-50% - 24px), -50%) scale(0.78);
 }
 
 .scene-release .nucleus-track-b {
-  opacity: 0.58;
-  transform: translate(calc(-50% + min(42vw, 520px)), -50%) scale(0.5);
+  opacity: 0.74;
+  transform: translate(calc(-50% + 24px), -50%) scale(0.78);
+}
+
+.scene-release {
+  animation: reactorAftershock 180ms linear infinite alternate;
+}
+
+.scene-release .nucleus {
+  border-color: #fff2a3;
+  box-shadow:
+    0 0 34px #fff6c7,
+    0 0 96px rgb(255 128 24 / 0.78);
+  animation: fusionContactShake 120ms steps(2, end) infinite alternate;
 }
 
 .scene-release .fusion-core,
@@ -1024,6 +1066,26 @@ footer {
   }
 }
 
+@keyframes fusionContactShake {
+  from {
+    filter: brightness(1.08) saturate(1.2);
+    transform: translate(-4px, 2px) rotate(-3deg) scale(0.97);
+  }
+  to {
+    filter: brightness(1.35) saturate(1.45);
+    transform: translate(4px, -2px) rotate(3deg) scale(1.05);
+  }
+}
+
+@keyframes reactorAftershock {
+  from {
+    transform: translate(-3px, 1px);
+  }
+  to {
+    transform: translate(3px, -1px);
+  }
+}
+
 @keyframes releaseWave {
   0% {
     opacity: 0.9;
@@ -1074,10 +1136,18 @@ footer {
     font-size: 13px;
   }
 
-  .reset-button {
-    font-size: 0;
+  .top-actions {
+    gap: 6px;
   }
 
+  .bgm-toggle,
+  .reset-button {
+    font-size: 0;
+    min-width: 38px;
+    justify-content: center;
+  }
+
+  .bgm-toggle span,
   .reset-button span {
     font-size: 13px;
   }

@@ -12,12 +12,15 @@ const CONFIG = {
   REPEL_SPEED: 48,
   ORBIT_SPEED: 50,
   SECOND_APPROACH_SPEED: 52,
-  RELEASE_SPEED: 56,
-  SPIN_SPEED: 42,
-  SPIN_DURATION: 1300,
   TARGET_TOLERANCE: 18,
+  FUSION_TOLERANCE: 7,
   TARGET_TIMEOUT: 8000,
   MOVE_RETRY_INTERVAL: 1100,
+  FUSION_PUSH_SPEED: 72,
+  FUSION_WIGGLE: 22,
+  FUSION_PULSE_DURATION: 105,
+  FUSION_SHAKE_CYCLES: 16,
+  RELEASE_SHAKE_CYCLES: 14,
   STEP_DELAY: 350,
 };
 
@@ -42,6 +45,7 @@ const elements = {
   statusCopy: document.querySelector("#statusCopy"),
   heatButton: document.querySelector("#heatButton"),
   fusionButton: document.querySelector("#fusionButton"),
+  bgmToggle: document.querySelector("#bgmToggle"),
   resetButton: document.querySelector("#resetButton"),
   temperatureValue: document.querySelector("#temperatureValue"),
   temperatureFill: document.querySelector("#temperatureFill"),
@@ -75,6 +79,9 @@ const state = {
   explosionBuffer: null,
   explosionLoading: null,
   explosionSource: null,
+  bgmAudio: null,
+  bgmEnabled: true,
+  bgmRestoreTimer: null,
 };
 
 // 指定された p5.js スケッチと同じシンプルマット定義を使用します。
@@ -82,6 +89,10 @@ const targetMat =
   typeof P5tId !== "undefined" ? P5tId.SimpleTileMat : undefined;
 const EXPLOSION_AUDIO_URL = new URL(
   "audio/fusion-explosion.mp3",
+  document.baseURI,
+).href;
+const BGM_AUDIO_URL = new URL(
+  "audio/galaxy-runner.mp3",
   document.baseURI,
 ).href;
 const hasBluetooth = "bluetooth" in navigator;
@@ -118,12 +129,8 @@ const MAT_TARGETS = {
     { x: 305, y: 205, angle: Math.PI },
   ],
   fusion: [
-    { x: 226, y: 250, angle: 0 },
-    { x: 274, y: 250, angle: Math.PI },
-  ],
-  release: [
-    { x: 125, y: 250, angle: 0 },
-    { x: 375, y: 250, angle: Math.PI },
+    { x: 234, y: 250, angle: 0 },
+    { x: 266, y: 250, angle: Math.PI },
   ],
 };
 
@@ -317,6 +324,69 @@ function initAudio() {
         console.warn("explosion audio unavailable", error);
       });
   }
+
+  startBgm();
+}
+
+function ensureBgmAudio() {
+  if (state.bgmAudio) return state.bgmAudio;
+  const audio = new Audio(BGM_AUDIO_URL);
+  audio.loop = true;
+  audio.preload = "auto";
+  audio.volume = 0.2;
+  state.bgmAudio = audio;
+  return audio;
+}
+
+function updateBgmToggle() {
+  elements.bgmToggle.classList.toggle("is-on", state.bgmEnabled);
+  elements.bgmToggle.setAttribute(
+    "aria-pressed",
+    String(state.bgmEnabled),
+  );
+  elements.bgmToggle.querySelector("strong").textContent =
+    state.bgmEnabled ? "BGM ON" : "BGM OFF";
+}
+
+function startBgm() {
+  if (!state.bgmEnabled) return;
+  const audio = ensureBgmAudio();
+  audio
+    .play()
+    .catch(() => {
+      // ブラウザの自動再生制限時は、次のユーザー操作で再試行します。
+    });
+}
+
+function stopBgm(resetPosition = false) {
+  if (!state.bgmAudio) return;
+  window.clearTimeout(state.bgmRestoreTimer);
+  state.bgmRestoreTimer = null;
+  state.bgmAudio.pause();
+  state.bgmAudio.volume = 0.2;
+  if (resetPosition) state.bgmAudio.currentTime = 0;
+}
+
+function setBgmEnabled(enabled) {
+  state.bgmEnabled = enabled;
+  updateBgmToggle();
+  if (enabled) {
+    startBgm();
+  } else {
+    stopBgm();
+  }
+}
+
+function duckBgm(duration = 4800) {
+  if (!state.bgmAudio || state.bgmAudio.paused) return;
+  window.clearTimeout(state.bgmRestoreTimer);
+  state.bgmAudio.volume = 0.065;
+  state.bgmRestoreTimer = window.setTimeout(() => {
+    if (state.bgmAudio && state.bgmEnabled) {
+      state.bgmAudio.volume = 0.2;
+    }
+    state.bgmRestoreTimer = null;
+  }, duration);
 }
 
 function stopExplosionSound() {
@@ -330,6 +400,7 @@ function stopExplosionSound() {
 }
 
 function playExplosionSound() {
+  duckBgm();
   if (!state.audioContext || !state.explosionBuffer) {
     browserSweep(180, 55, 1.6, 0.08);
     return;
@@ -672,7 +743,12 @@ async function moveCubesTo(targets, speed) {
   });
 }
 
-async function waitForCubeTargets(targets, speed, token) {
+async function waitForCubeTargets(
+  targets,
+  speed,
+  token,
+  tolerance = CONFIG.TARGET_TOLERANCE,
+) {
   const startedAt = performance.now();
   let lastMoveCommandAt = startedAt;
 
@@ -681,7 +757,7 @@ async function waitForCubeTargets(targets, speed, token) {
 
     const arrived = getCubesLeftToRight().every(
       (cube, index) =>
-        distanceToTarget(cube, targets[index]) <= CONFIG.TARGET_TOLERANCE,
+        distanceToTarget(cube, targets[index]) <= tolerance,
     );
     if (arrived) return;
 
@@ -700,14 +776,78 @@ async function waitForCubeTargets(targets, speed, token) {
   throw error;
 }
 
-async function runCoordinateMove(targets, speed, token, demoDuration) {
+async function runCoordinateMove(
+  targets,
+  speed,
+  token,
+  demoDuration,
+  tolerance = CONFIG.TARGET_TOLERANCE,
+) {
   if (state.mode === "demo") {
     await pause(demoDuration, token);
     return;
   }
 
   await moveCubesTo(targets, speed);
-  await waitForCubeTargets(targets, speed, token);
+  await waitForCubeTargets(targets, speed, token, tolerance);
+}
+
+async function runFusionShake(
+  token,
+  cycles,
+  pushSpeed = CONFIG.FUSION_PUSH_SPEED,
+  wiggle = CONFIG.FUSION_WIGGLE,
+) {
+  const pulseDuration = CONFIG.FUSION_PULSE_DURATION;
+
+  if (state.mode === "demo") {
+    await pause(cycles * (pulseDuration + 32), token);
+    return;
+  }
+
+  for (let step = 0; step < cycles; step += 1) {
+    if (!coordinatesReady()) throw new Error("mat-coordinates-lost");
+
+    const phase = step % 3;
+    const leftSpeed =
+      phase === 2
+        ? pushSpeed + 8
+        : pushSpeed + (phase === 0 ? wiggle : -wiggle);
+    const rightSpeed =
+      phase === 2
+        ? pushSpeed + 8
+        : pushSpeed + (phase === 0 ? -wiggle : wiggle);
+    const flashColor =
+      step % 4 < 2 ? [255, 245, 188] : [255, 65, 18];
+
+    const results = await Promise.allSettled(
+      getCubesLeftToRight().map((cube) =>
+        Promise.resolve()
+          .then(() =>
+            cube.move(leftSpeed, rightSpeed, pulseDuration),
+          )
+          .then(() =>
+            cube.turnLightOnRGB(...flashColor, pulseDuration + 30),
+          ),
+      ),
+    );
+
+    results.forEach((result) => {
+      if (result.status === "rejected") {
+        console.warn("toio fusion shake will continue", result.reason);
+      }
+    });
+    await pause(pulseDuration + 32, token);
+  }
+
+  await Promise.allSettled(
+    getCubesLeftToRight().map((cube) =>
+      Promise.resolve().then(() =>
+        cube.move(pushSpeed + 10, pushSpeed + 10, 180),
+      ),
+    ),
+  );
+  await pause(220, token);
 }
 
 function playApproachPulse(fast = false) {
@@ -860,6 +1000,7 @@ async function runFusionSequence() {
       CONFIG.SECOND_APPROACH_SPEED,
       token,
       3650,
+      CONFIG.FUSION_TOLERANCE,
     );
     await pause(500, token);
 
@@ -872,7 +1013,6 @@ async function runFusionSequence() {
       650,
     );
     safeCubeCommand((cube) => {
-      cube.stop();
       cube.turnLightOnRGB(255, 245, 180, 0);
       cube.playMelody([
         { note: 72, duration: 10 },
@@ -882,29 +1022,30 @@ async function runFusionSequence() {
       ]);
     });
     playExplosionSound();
-    await pause(2900, token);
+    await pause(220, token);
+    await runFusionShake(
+      token,
+      CONFIG.FUSION_SHAKE_CYCLES,
+    );
+    await pause(650, token);
 
-    // 6. エネルギー放出
+    // 6. エネルギー放出。2台は密着したまま、余震としてさらに激しく振動。
     setScene(
       "release",
       "ENERGY RELEASE",
       "エネルギー放出",
-      "光、音、動きとなって空間へ広がる",
+      "融合したまま、光と衝撃波が空間へ広がる",
       2200,
     );
     browserSweep(1100, 120, 1.25, 0.08);
     setCubeLight([255, 194, 34]);
-    await runCoordinateMove(
-      MAT_TARGETS.release,
-      CONFIG.RELEASE_SPEED,
+    await runFusionShake(
       token,
-      1450,
+      CONFIG.RELEASE_SHAKE_CYCLES,
+      CONFIG.FUSION_PUSH_SPEED + 10,
+      CONFIG.FUSION_WIGGLE + 6,
     );
-    safeCubeCommand((cube, index) => {
-      cube.rotate(
-        index === 0 ? CONFIG.SPIN_SPEED : -CONFIG.SPIN_SPEED,
-        CONFIG.SPIN_DURATION,
-      );
+    safeCubeCommand((cube) => {
       cube.playMelody([
         { note: 84, duration: 8 },
         { note: 76, duration: 8 },
@@ -912,7 +1053,7 @@ async function runFusionSequence() {
         { note: 60, duration: 12 },
       ]);
     });
-    await pause(2750, token);
+    await pause(1650, token);
 
     // 7. 終了
     setScene(
@@ -978,6 +1119,7 @@ function resetExperience() {
   state.running = false;
   stopHeating();
   stopExplosionSound();
+  stopBgm(true);
   stopAllToio();
   updateTemperature(0);
   elements.heatButton.hidden = false;
@@ -1007,6 +1149,9 @@ elements.modeButtons.forEach((button) => {
 });
 elements.connectButton.addEventListener("click", connectToio);
 elements.demoFallback.addEventListener("click", () => setMode("demo"));
+elements.bgmToggle.addEventListener("click", () => {
+  setBgmEnabled(!state.bgmEnabled);
+});
 elements.resetButton.addEventListener("click", resetExperience);
 elements.fusionButton.addEventListener("click", runFusionSequence);
 
@@ -1047,4 +1192,5 @@ window.setInterval(() => {
 }, 350);
 
 updateTemperature(0);
+updateBgmToggle();
 setMode("demo");

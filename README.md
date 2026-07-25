@@ -29,7 +29,9 @@ Cube A  →          ＋          ←  Cube B
 
 接続順に関係なく、現在のX座標から左側をCube A、右側をCube Bとして判定します。`HOLD TO HEAT` を7秒長押しし、100%になったら `FUSION` を押します。長押しを離すと温度を保ったまま停止します。
 
-FUSION後はSimpleTileMatの実座標を読み、2台を中央線 `y=250` 上の開始位置、接近、反発、プラズマ旋回、磁場反転、再接近、融合、放出の各目標座標へ `moveTo()` で移動します。実機の通信遅延で命令が途切れても、到着するまで移動命令を再送します。座標を見失った場合は自動停止します。加熱から完了までの目安は約40秒です。
+FUSION後はSimpleTileMatの実座標を読み、2台を中央線 `y=250` 上の開始位置、接近、反発、プラズマ旋回、磁場反転、再接近、融合の各目標座標へ `moveTo()` で移動します。融合時は2台を中央で密着させ、互いに押し合いながら左右モーターを高速で切り替えて振動させます。実機の通信遅延で命令が途切れても、到着するまで移動命令を再送します。座標を見失った場合は自動停止します。加熱から完了までの目安は約40秒です。
+
+画面右上の `BGM ON / OFF` でBGMを切り替えられます。ブラウザの自動再生制限に対応するため、BGMは最初のボタン操作から再生を開始します。核融合時はBGMの音量を一時的に下げ、爆発音を聞きやすくします。
 
 記号・アルファベットが並ぶマットは今回は使いません。Cube上面の白いパーツは付けたままで構いません。
 
@@ -56,6 +58,7 @@ FUSION後はSimpleTileMatの実座標を読み、2台を中央線 `y=250` 上の
 - [p5.toio 0.5.0](https://tetunori.github.io/p5.toio/) — Web Bluetooth接続、モーター、LED、スピーカー制御
 - p5.js 1.11.1 — p5.toioの実行依存
 - `public/audio/fusion-explosion.mp3` — 核融合時の爆発音（ユーザー提供素材）
+- `public/audio/galaxy-runner.mp3` — 体験中のBGM（ユーザー提供素材）
 
 実機接続とマット定義は、指定された[p5.jsスケッチ `toio-digital-twin-demo`](https://editor.p5js.org/akichika/sketches/DrQ64DrhE)と同じ `P5tCube.connectNewP5tCube()`、`P5tId.SimpleTileMat` を使用します。実機APIは既存の `apps/toio-cute-dance` とp5.toio公式APIリファレンスでも確認済みです。
 
