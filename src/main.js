@@ -7,16 +7,17 @@ const CONFIG = {
   HEAT_MAX_SPEED: 42,
   HEAT_BEEP_INTERVAL_MIN: 220,
   HEAT_BEEP_INTERVAL_MAX: 900,
-  POSITION_SPEED: 30,
-  APPROACH_SPEED: 34,
-  REPEL_SPEED: 38,
-  ORBIT_SPEED: 42,
-  SECOND_APPROACH_SPEED: 44,
-  RELEASE_SPEED: 50,
+  POSITION_SPEED: 42,
+  APPROACH_SPEED: 46,
+  REPEL_SPEED: 48,
+  ORBIT_SPEED: 50,
+  SECOND_APPROACH_SPEED: 52,
+  RELEASE_SPEED: 56,
   SPIN_SPEED: 42,
   SPIN_DURATION: 1300,
-  TARGET_TOLERANCE: 14,
-  TARGET_TIMEOUT: 4800,
+  TARGET_TOLERANCE: 18,
+  TARGET_TIMEOUT: 8000,
+  MOVE_RETRY_INTERVAL: 1100,
   STEP_DELAY: 350,
 };
 
@@ -205,6 +206,15 @@ function formatCubeCoordinates() {
   if (!coordinatesReady()) return "";
   const [cubeA, cubeB] = getCubesLeftToRight();
   return `A (${Math.round(cubeA.x)}, ${Math.round(cubeA.y)})・B (${Math.round(cubeB.x)}, ${Math.round(cubeB.y)})`;
+}
+
+function formatTargets(targets) {
+  return targets
+    .map((target, index) => {
+      const label = index === 0 ? "A" : "B";
+      return `${label} (${target.x}, ${target.y})`;
+    })
+    .join("・");
 }
 
 function renderConnectionState(message = "") {
@@ -573,18 +583,29 @@ function distanceToTarget(cube, target) {
   return Math.hypot(cube.x - target.x, cube.y - target.y);
 }
 
-function moveCubesTo(targets, speed) {
+async function moveCubesTo(targets, speed) {
   if (state.mode !== "toio" || !coordinatesReady()) {
     throw new Error("mat-coordinates-lost");
   }
 
-  getCubesLeftToRight().forEach((cube, index) => {
-    cube.moveTo({ ...targets[index] }, speed);
+  const results = await Promise.allSettled(
+    getCubesLeftToRight().map((cube, index) =>
+      Promise.resolve().then(() =>
+        cube.moveTo({ ...targets[index] }, speed),
+      ),
+    ),
+  );
+
+  results.forEach((result) => {
+    if (result.status === "rejected") {
+      console.warn("toio move command will retry", result.reason);
+    }
   });
 }
 
-async function waitForCubeTargets(targets, token) {
+async function waitForCubeTargets(targets, speed, token) {
   const startedAt = performance.now();
+  let lastMoveCommandAt = startedAt;
 
   while (performance.now() - startedAt < CONFIG.TARGET_TIMEOUT) {
     if (!coordinatesReady()) throw new Error("mat-coordinates-lost");
@@ -594,11 +615,20 @@ async function waitForCubeTargets(targets, token) {
         distanceToTarget(cube, targets[index]) <= CONFIG.TARGET_TOLERANCE,
     );
     if (arrived) return;
+
+    const now = performance.now();
+    if (now - lastMoveCommandAt >= CONFIG.MOVE_RETRY_INTERVAL) {
+      await moveCubesTo(targets, speed);
+      lastMoveCommandAt = performance.now();
+    }
+
     await pause(120, token);
   }
 
   stopAllToio();
-  throw new Error("coordinate-target-timeout");
+  const error = new Error("coordinate-target-timeout");
+  error.targets = targets;
+  throw error;
 }
 
 async function runCoordinateMove(targets, speed, token, demoDuration) {
@@ -607,8 +637,8 @@ async function runCoordinateMove(targets, speed, token, demoDuration) {
     return;
   }
 
-  moveCubesTo(targets, speed);
-  await waitForCubeTargets(targets, token);
+  await moveCubesTo(targets, speed);
+  await waitForCubeTargets(targets, speed, token);
 }
 
 function playApproachPulse(fast = false) {
@@ -695,7 +725,6 @@ async function runFusionSequence() {
     browserSweep(260, 90, 0.42, 0.075);
     setCubeLight([255, 20, 35]);
     safeCubeCommand((cube) => {
-      cube.stop();
       cube.playSE(P5tCube.seId.cancel);
     });
     await runCoordinateMove(
@@ -847,14 +876,18 @@ async function runFusionSequence() {
       elements.fusionButton.disabled = false;
     } else if (error.message === "coordinate-target-timeout") {
       stopAllToio();
+      const current = formatCubeCoordinates() || "座標取得中";
+      const target = error.targets
+        ? formatTargets(error.targets)
+        : "目標座標を確認できません";
       setScene(
         "ready",
         "POSITION TIMEOUT",
         "目標座標へ移動できませんでした",
-        "Cubeの向き、電池、マットの平らさを確認してください",
+        `現在 ${current} ／ 目標 ${target}`,
       );
       elements.operationHint.textContent =
-        "位置を直してからFUSIONを再実行できます";
+        "位置を直したらFUSIONをもう一度押してください";
       elements.fusionButton.disabled = false;
     } else if (error.message !== "sequence-cancelled") {
       console.error("fusion sequence failed", error);
