@@ -12,15 +12,19 @@ const CONFIG = {
   REPEL_SPEED: 48,
   ORBIT_SPEED: 50,
   SECOND_APPROACH_SPEED: 52,
+  SPIN_SPEED: 96,
+  SPIN_BURST_DURATION: 310,
+  SPIN_BURSTS: 4,
+  SPIN_SETTLE_DELAY: 90,
   TARGET_TOLERANCE: 18,
   FUSION_TOLERANCE: 7,
   TARGET_TIMEOUT: 8000,
   MOVE_RETRY_INTERVAL: 1100,
-  FUSION_PUSH_SPEED: 72,
-  FUSION_WIGGLE: 22,
-  FUSION_PULSE_DURATION: 105,
-  FUSION_SHAKE_CYCLES: 16,
-  RELEASE_SHAKE_CYCLES: 14,
+  FUSION_PUSH_SPEED: 78,
+  FUSION_WIGGLE: 30,
+  FUSION_PULSE_DURATION: 88,
+  FUSION_SHAKE_CYCLES: 22,
+  RELEASE_SHAKE_CYCLES: 18,
   STEP_DELAY: 350,
 };
 
@@ -32,6 +36,7 @@ const SCENE_CLASSES = [
   "scene-repel",
   "scene-orbit-a",
   "scene-orbit-b",
+  "scene-spin-charge",
   "scene-second-approach",
   "scene-fusion",
   "scene-release",
@@ -106,8 +111,8 @@ const MAT_BOUNDS = {
   maxY: targetMat?.maxY ?? 358,
 };
 
-// 左右のCubeが中央線上を移動する、安全寄りの固定座標。
-const MAT_TARGETS = {
+// A3簡易マット用。A4開発用マットを2枚つないだ場合も同じ座標です。
+const A3_TARGETS = {
   stage: [
     { x: 140, y: 250, angle: 0 },
     { x: 360, y: 250, angle: Math.PI },
@@ -128,10 +133,48 @@ const MAT_TARGETS = {
     { x: 195, y: 295, angle: 0 },
     { x: 305, y: 205, angle: Math.PI },
   ],
+  spin: [
+    { x: 195, y: 250, angle: 0 },
+    { x: 305, y: 250, angle: Math.PI },
+  ],
   fusion: [
     { x: 234, y: 250, angle: 0 },
     { x: 266, y: 250, angle: Math.PI },
   ],
+};
+
+function createA4Targets(centerX) {
+  const target = (offsetX, offsetY, angle) => ({
+    x: centerX + offsetX,
+    y: 250 + offsetY,
+    angle,
+  });
+
+  return {
+    stage: [target(-40, 0, 0), target(40, 0, Math.PI)],
+    approach: [target(-28, 0, 0), target(28, 0, Math.PI)],
+    repel: [target(-40, 0, 0), target(40, 0, Math.PI)],
+    orbitA: [target(-30, -40, 0), target(30, 40, Math.PI)],
+    orbitB: [target(-30, 40, 0), target(30, -40, Math.PI)],
+    spin: [target(-40, 0, 0), target(40, 0, Math.PI)],
+    fusion: [target(-16, 0, 0), target(16, 0, Math.PI)],
+  };
+}
+
+// A4開発用マットは、表と裏でA3簡易マットの左右半分を分担します。
+const MAT_PROFILES = {
+  a3: {
+    label: "A3 / A4×2",
+    targets: A3_TARGETS,
+  },
+  a4Front: {
+    label: "A4 FRONT",
+    targets: createA4Targets(174),
+  },
+  a4Back: {
+    label: "A4 BACK",
+    targets: createA4Targets(326),
+  },
 };
 
 function clamp(value, min, max) {
@@ -216,6 +259,15 @@ function coordinatesReady() {
   return state.cubes.length === 2 && state.cubes.every(hasMatPosition);
 }
 
+function getActiveMatProfile() {
+  if (!coordinatesReady()) return MAT_PROFILES.a3;
+
+  const xPositions = state.cubes.map((cube) => cube.x);
+  if (Math.max(...xPositions) <= 250) return MAT_PROFILES.a4Front;
+  if (Math.min(...xPositions) >= 250) return MAT_PROFILES.a4Back;
+  return MAT_PROFILES.a3;
+}
+
 function formatCubeCoordinates() {
   if (!coordinatesReady()) return "";
   const [cubeA, cubeB] = getCubesLeftToRight();
@@ -253,8 +305,9 @@ function renderConnectionState(message = "") {
   elements.connectButton.hidden = state.cubes.length >= 2;
   if (state.cubes.length >= 2) {
     if (coordinatesReady()) {
+      const matProfile = getActiveMatProfile();
       elements.connectionTitle.textContent = "2 CUBES TRACKED";
-      elements.connectionDetail.textContent = `${formatCubeCoordinates()}・座標取得完了`;
+      elements.connectionDetail.textContent = `${formatCubeCoordinates()}・${matProfile.label} 自動調整`;
       elements.connectionDot.classList.add("is-ready");
     } else {
       elements.connectionTitle.textContent = "PLACE CUBES ON SIMPLE MAT";
@@ -809,14 +862,20 @@ async function runFusionShake(
     if (!coordinatesReady()) throw new Error("mat-coordinates-lost");
 
     const phase = step % 3;
-    const leftSpeed =
+    const leftSpeed = clamp(
       phase === 2
         ? pushSpeed + 8
-        : pushSpeed + (phase === 0 ? wiggle : -wiggle);
-    const rightSpeed =
+        : pushSpeed + (phase === 0 ? wiggle : -wiggle),
+      8,
+      115,
+    );
+    const rightSpeed = clamp(
       phase === 2
         ? pushSpeed + 8
-        : pushSpeed + (phase === 0 ? -wiggle : wiggle);
+        : pushSpeed + (phase === 0 ? -wiggle : wiggle),
+      8,
+      115,
+    );
     const flashColor =
       step % 4 < 2 ? [255, 245, 188] : [255, 65, 18];
 
@@ -843,11 +902,60 @@ async function runFusionShake(
   await Promise.allSettled(
     getCubesLeftToRight().map((cube) =>
       Promise.resolve().then(() =>
-        cube.move(pushSpeed + 10, pushSpeed + 10, 180),
+        cube.move(
+          clamp(pushSpeed + 10, 8, 115),
+          clamp(pushSpeed + 10, 8, 115),
+          180,
+        ),
       ),
     ),
   );
   await pause(220, token);
+}
+
+async function runSpinCharge(token) {
+  const burstDuration = CONFIG.SPIN_BURST_DURATION;
+  const burstInterval = burstDuration + CONFIG.SPIN_SETTLE_DELAY;
+
+  if (state.mode === "demo") {
+    await pause(CONFIG.SPIN_BURSTS * burstInterval, token);
+    return;
+  }
+
+  for (let step = 0; step < CONFIG.SPIN_BURSTS; step += 1) {
+    if (!coordinatesReady()) throw new Error("mat-coordinates-lost");
+
+    const direction = step % 2 === 0 ? 1 : -1;
+    const flashColor =
+      step % 2 === 0 ? [118, 54, 255] : [255, 126, 24];
+
+    const results = await Promise.allSettled(
+      getCubesLeftToRight().map((cube, index) =>
+        Promise.resolve().then(() => {
+          const mirror = index === 0 ? 1 : -1;
+          cube.rotate(
+            CONFIG.SPIN_SPEED * direction * mirror,
+            burstDuration,
+          );
+          cube.turnLightOnRGB(
+            ...flashColor,
+            burstDuration + CONFIG.SPIN_SETTLE_DELAY,
+          );
+          cube.playSingleNote(68 + step * 4 + index * 7, 8);
+        }),
+      ),
+    );
+
+    results.forEach((result) => {
+      if (result.status === "rejected") {
+        console.warn("toio spin charge will continue", result.reason);
+      }
+    });
+    await pause(burstInterval, token);
+  }
+
+  safeCubeCommand((cube) => cube.stop());
+  await pause(180, token);
 }
 
 function playApproachPulse(fast = false) {
@@ -879,6 +987,7 @@ async function runFusionSequence() {
   state.running = true;
   state.runToken += 1;
   const token = state.runToken;
+  const matTargets = getActiveMatProfile().targets;
   elements.fusionButton.disabled = true;
   elements.resetButton.classList.add("is-armed");
   elements.modeButtons.forEach((button) => {
@@ -897,7 +1006,7 @@ async function runFusionSequence() {
       );
       setCubeLight([52, 116, 255]);
       await runCoordinateMove(
-        MAT_TARGETS.stage,
+        matTargets.stage,
         CONFIG.POSITION_SPEED,
         token,
         0,
@@ -916,7 +1025,7 @@ async function runFusionSequence() {
     setCubeLight([255, 76, 24]);
     playApproachPulse(false);
     await runCoordinateMove(
-      MAT_TARGETS.approach,
+      matTargets.approach,
       CONFIG.APPROACH_SPEED,
       token,
       3900,
@@ -937,7 +1046,7 @@ async function runFusionSequence() {
       cube.playSE(P5tCube.seId.cancel);
     });
     await runCoordinateMove(
-      MAT_TARGETS.repel,
+      matTargets.repel,
       CONFIG.REPEL_SPEED,
       token,
       2450,
@@ -958,7 +1067,7 @@ async function runFusionSequence() {
       cube.playSingleNote(index === 0 ? 69 : 76, 10),
     );
     await runCoordinateMove(
-      MAT_TARGETS.orbitA,
+      matTargets.orbitA,
       CONFIG.ORBIT_SPEED,
       token,
       1900,
@@ -978,14 +1087,40 @@ async function runFusionSequence() {
       cube.playSingleNote(index === 0 ? 79 : 72, 10),
     );
     await runCoordinateMove(
-      MAT_TARGETS.orbitB,
+      matTargets.orbitB,
       CONFIG.ORBIT_SPEED,
       token,
       1900,
     );
     await pause(350, token);
 
-    // 4. 再接近
+    // 4. 衝突前の高速スピン。十分に離れた位置で逆回転し、座標を再ロックする。
+    setScene(
+      "spin-charge",
+      "ROTATIONAL ENERGY",
+      "超高速スピン",
+      "反対方向への回転で、衝突エネルギーを一気に高める",
+      1750,
+    );
+    setCubeLight([118, 54, 255]);
+    browserSweep(420, 1320, 1.55, 0.065);
+    await runCoordinateMove(
+      matTargets.spin,
+      CONFIG.ORBIT_SPEED,
+      token,
+      650,
+    );
+    await pause(220, token);
+    await runSpinCharge(token);
+    await runCoordinateMove(
+      matTargets.spin,
+      CONFIG.POSITION_SPEED,
+      token,
+      420,
+    );
+    await pause(320, token);
+
+    // 5. 再接近
     setScene(
       "second-approach",
       "HIGHER ENERGY",
@@ -996,7 +1131,7 @@ async function runFusionSequence() {
     setCubeLight([255, 190, 20]);
     playApproachPulse(true);
     await runCoordinateMove(
-      MAT_TARGETS.fusion,
+      matTargets.fusion,
       CONFIG.SECOND_APPROACH_SPEED,
       token,
       3650,
@@ -1004,7 +1139,7 @@ async function runFusionSequence() {
     );
     await pause(500, token);
 
-    // 5. 核融合
+    // 6. 核融合
     setScene(
       "fusion",
       "CRITICAL MOMENT",
@@ -1029,7 +1164,7 @@ async function runFusionSequence() {
     );
     await pause(650, token);
 
-    // 6. エネルギー放出。2台は密着したまま、余震としてさらに激しく振動。
+    // 7. エネルギー放出。2台は密着したまま、余震としてさらに激しく振動。
     setScene(
       "release",
       "ENERGY RELEASE",
@@ -1055,7 +1190,7 @@ async function runFusionSequence() {
     });
     await pause(1650, token);
 
-    // 7. 終了
+    // 8. 終了
     setScene(
       "finished",
       "REACTION COMPLETE",

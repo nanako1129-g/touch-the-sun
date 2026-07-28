@@ -660,6 +660,45 @@ kbd {
   border-color: rgb(255 132 63 / 0.78);
 }
 
+.scene-spin-charge .nucleus-track-a {
+  transform: translate(calc(-50% - min(10vw, 130px)), -50%);
+}
+
+.scene-spin-charge .nucleus-track-b {
+  transform: translate(calc(-50% + min(10vw, 130px)), -50%);
+}
+
+.scene-spin-charge .nucleus {
+  border-color: #fff0a4;
+  box-shadow:
+    0 0 30px #ffbb38,
+    0 0 96px rgb(255 64 32 / 0.68),
+    inset -12px -14px 22px rgb(0 4 40 / 0.34);
+}
+
+.scene-spin-charge .nucleus-a {
+  animation: spinCharge 310ms linear infinite;
+}
+
+.scene-spin-charge .nucleus-b {
+  animation: spinCharge 310ms linear infinite reverse;
+}
+
+.scene-spin-charge .orbit {
+  border-color: rgb(255 157 61 / 0.55);
+  animation: orbitSpin 780ms linear infinite;
+}
+
+.scene-spin-charge .wave-one,
+.scene-spin-charge .wave-two {
+  border-color: rgb(255 190 74 / 0.82);
+  animation: plasmaWave 820ms ease-out infinite;
+}
+
+.scene-spin-charge .wave-two {
+  animation-delay: 410ms;
+}
+
 .scene-second-approach .nucleus-track-a {
   transform: translate(calc(-50% - min(2.8vw, 38px)), -50%);
 }
@@ -1005,6 +1044,21 @@ footer {
   to {
     filter: saturate(1.35) brightness(1.22);
     transform: scale(1.08) rotate(3deg);
+  }
+}
+
+@keyframes spinCharge {
+  0% {
+    filter: saturate(1.15) brightness(1);
+    transform: rotate(0deg) scale(0.96);
+  }
+  50% {
+    filter: saturate(1.5) brightness(1.3);
+    transform: rotate(180deg) scale(1.08);
+  }
+  100% {
+    filter: saturate(1.15) brightness(1);
+    transform: rotate(360deg) scale(0.96);
   }
 }
 
